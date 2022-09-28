@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import * as dotenv from 'dotenv'
 import { Telegraf, Context } from 'telegraf'
-import { MonoBot } from './monobot'
 
 const prisma = new PrismaClient()
 
@@ -13,11 +12,6 @@ let waitingFor = "transaction_type"
 var obj: {[k: string]: any} = {};
 
 async function main() {
-  const banks = await prisma.bank.findMany()
-  console.log(banks)    
-  const transs = await prisma.trans.findMany()
-  console.log(transs)
-
   bot.command('viewBalance', viewBalance);
 
   bot.command('addTransaction', addTransaction);
@@ -37,7 +31,7 @@ async function main() {
 
       case "transaction_type": {
         let types = ['transaction', 'outflow', 'income']
-        types = types.filter(x => x.includes(text))
+        types = types.filter(x => x.includes(text.toLowerCase()))
         if (types.length == 1) {
           waitingFor = types[0] + "_amount"
           reply = "Amount?"
@@ -62,17 +56,48 @@ async function main() {
       }
 
       case "outflow_from": {
-        const bank_names = await prisma.bank.findMany()
-        // (JSON.parse(String(bank_names))).map(x => x.bank_name)
-
-        // reply = String(bank_names)
-        // console.log(bank_names)
-        
-
-        
-        
+        let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
+        bank_names = bank_names.filter(x => x.toLowerCase().includes(text.toLowerCase()))
+        if (bank_names.length == 1) {
+          waitingFor = 'outflow_tag'
+          obj.bank_from = bank_names[0]
+          reply = 'Tag?'
+        } else {
+          reply = 'From bank?'
+        }
         break;
       }
+      
+      case "outflow_tag": {
+        waitingFor = 'outflow_info'
+        obj.tag = text
+        reply = 'Info?'
+        break;
+      }
+      
+      case "outflow_info": {
+        obj.info = text
+
+        let d = new Date()
+        let date = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDay() + '-' + d.getHours() + '-' + d.getMinutes() + '-' + d.getSeconds()
+        console.log(date)
+
+        const outflow = await prisma.outflow.create({
+          data: {
+            outflow_datetime: date,
+            outflow_from: obj.bank_from,
+            outflow_amount: obj.amount,
+            outflow_tag: obj.tag,
+            outflow_info: obj.info
+          }
+        })
+
+        waitingFor = 'instructions'
+        reply = 'Done.'
+        break;
+      }
+
+
       
       //
       
@@ -109,7 +134,7 @@ main()
   })
 
 async function viewBalance(ctx:Context) {       
-  if (ctx.chat?.id == process.env.CHAT_ID) {
+  if (String(ctx.chat?.id) == process.env.CHAT_ID) {
       const ms_id = (await ctx.reply('Working on it...')).message_id
       const banks = await prisma.bank.findMany({
         orderBy: [
@@ -132,7 +157,6 @@ async function viewBalance(ctx:Context) {
         }
       }
       
-      // ctx.reply(JSON.stringify(banks))
       ctx.deleteMessage(ms_id)
       ctx.replyWithMarkdown(str)
   }
