@@ -89,6 +89,10 @@ async function main() {
           let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2,'0') + '-' + d.getDay().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
           console.log(date)
 
+          console.log("AAAAAAAAAAAAAAAA")
+          console.log(obj.from)
+          console.log(obj.to)
+
           switch (currentDoing) {
             case "trans":
               const trans = await prisma.trans.create({
@@ -99,6 +103,34 @@ async function main() {
                   trans_amount: obj.amount,
                   trans_tag: obj.tag,
                   trans_info: obj.info
+                }
+              })
+              //
+              const v1 = await prisma.bank.findUnique({
+                where: {
+                  bank_name: obj.from
+                }
+              })
+              const updateBank1 = await prisma.bank.update({
+                where: {
+                  bank_name: obj.from
+                },
+                data: {
+                  bank_money: parseInt(v1?.bank_money.toString()!) - obj.amount
+                }
+              })
+              //
+              const v2 = await prisma.bank.findUnique({
+                where: {
+                  bank_name: obj.to
+                }
+              })
+              const updateBank2 = await prisma.bank.update({
+                where: {
+                  bank_name: obj.to
+                },
+                data: {
+                  bank_money: parseInt(v2?.bank_money.toString()!) + obj.amount
                 }
               })
               break;
@@ -124,7 +156,7 @@ async function main() {
                   income_tag: obj.tag,
                   income_info: obj.info
                 }
-              })
+              });
               break;
           }
           
@@ -178,13 +210,13 @@ async function viewBalance(ctx:Context) {
       let str = ""
       for (let b of banks) {
         if (b.bank_ismain) {
-          str += "`" + b.bank_name.padEnd(12, ' ') + (String(b.bank_money)).padStart(8, ' ') + " €`\n" 
+          str += "`" + b.bank_name.padEnd(12, ' ') + (convertMoneyToString(b.bank_money)).padStart(8, ' ') + " €`\n" 
         }
       }
       str += "`" + "".padStart(22, '-') + "`\n"
       for (let b of banks) {
         if (!b.bank_ismain) {
-          str += "`" + b.bank_name.padEnd(12, ' ') + (String(b.bank_money)).padStart(8, ' ') + " €`\n" 
+          str += "`" + b.bank_name.padEnd(12, ' ') + (convertMoneyToString(b.bank_money)).padStart(8, ' ') + " €`\n" 
         }
       }
       
@@ -196,7 +228,21 @@ async function viewBalance(ctx:Context) {
   }
 }
 
-
+function convertMoneyToString(n) {
+  let str = n.toString()
+  switch (str.length) {
+    case 1:
+      return '0.0' + str
+      break;
+    case 2:
+      return '0.' + str
+      break;
+    default:
+      let sx = str.substring(0, str.length - 2)
+      let dx = str.substring(str.length - 2)
+      return sx + '.' + dx
+  }
+}
 
 
 
@@ -383,8 +429,14 @@ async function action_trans_ok(ctx:Context) {
         str_begin = "To"
         break;
     }
-
-    let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
+    const banks = await prisma.bank.findMany({
+      orderBy: [
+        {
+          bank_name: 'asc'
+        }
+      ]
+    })
+    let bank_names = (await prisma.bank.findMany({ orderBy: [{ bank_name: 'asc' }] })).map(x => x.bank_name)
     let buttons = bank_names.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
     // console.log(buttons.reduce((x,y) => x + "," + y))
     let ms_id = (await ctx.reply(str_begin + " which bank? 🏦", {
@@ -438,7 +490,7 @@ async function action_button9(ctx:Context) {
 }
 
 async function generic_button_press(ctx:Context, n:number) {
-  let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
+  let bank_names = (await prisma.bank.findMany({ orderBy: [{ bank_name: 'asc' }] })).map(x => x.bank_name)
   let buttons
   let ms_id
   let result
@@ -498,9 +550,10 @@ async function generic_button_press(ctx:Context, n:number) {
       break;
 
     case "to":
+      bank_names = bank_names.filter(x => x != obj.from)
       obj.to = bank_names[n]
       waitingFor = 'tag'
-
+      
       switch (currentDoing) {
         case "trans":
           result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`

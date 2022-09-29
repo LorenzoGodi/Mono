@@ -9,7 +9,7 @@ datasource db {
 
 model bank {
   bank_name                    String    @id @db.VarChar(50)
-  bank_money                   Decimal   @db.Decimal
+  bank_money                   Int       @default(0)
   bank_ismain                  Boolean   @default(false)
   income                       income[]
   outflow                      outflow[]
@@ -20,31 +20,31 @@ model bank {
 model trans {
   trans_id                    Int     @id @default(autoincrement())
   trans_datetime              String  @unique @db.VarChar(50)
-  trans_from                  String? @db.VarChar(50)
-  trans_to                    String? @db.VarChar(50)
-  trans_amount                Decimal @db.Decimal
-  trans_tag                   String  @db.VarChar(50)
+  trans_from                  String  @db.VarChar(50)
+  trans_to                    String  @db.VarChar(50)
+  trans_amount                Int
+  trans_tag                   String? @db.VarChar(50)
   trans_info                  String? @db.VarChar(50)
-  bank_bankTotrans_trans_from bank?   @relation("bankTotrans_trans_from", fields: [trans_from], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
-  bank_bankTotrans_trans_to   bank?   @relation("bankTotrans_trans_to", fields: [trans_to], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
+  bank_bankTotrans_trans_from bank    @relation("bankTotrans_trans_from", fields: [trans_from], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
+  bank_bankTotrans_trans_to   bank    @relation("bankTotrans_trans_to", fields: [trans_to], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model income {
   income_id       Int     @id @default(autoincrement())
   income_datetime String  @unique @db.VarChar(50)
-  income_to       String? @db.VarChar(50)
-  income_amount   Decimal @db.Decimal
-  income_tag      String  @db.VarChar(50)
+  income_to       String  @db.VarChar(50)
+  income_amount   Int
+  income_tag      String? @db.VarChar(50)
   income_info     String? @db.VarChar(50)
-  bank            bank?   @relation(fields: [income_to], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
+  bank            bank    @relation(fields: [income_to], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model outflow {
   outflow_id       Int     @id @default(autoincrement())
-  outflow_datetime String  @unique @db.VarChar(50)
-  outflow_from     String? @db.VarChar(50)
-  outflow_amount   Decimal @db.Decimal
-  outflow_tag      String  @db.VarChar(50)
+  outflow_datetime String  @unique(map: "outflow_income_datetime_key") @db.VarChar(50)
+  outflow_from     String  @db.VarChar(50)
+  outflow_amount   Int
+  outflow_tag      String? @db.VarChar(50)
   outflow_info     String? @db.VarChar(50)
-  bank             bank?   @relation(fields: [outflow_from], references: [bank_name], onDelete: NoAction, onUpdate: NoAction)
+  bank             bank    @relation(fields: [outflow_from], references: [bank_name], onDelete: NoAction, onUpdate: NoAction, map: "outflow_income_to_fkey")
 }
