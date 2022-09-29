@@ -32,6 +32,8 @@ async function main() {
 
   bot.command('addtransaction', addTransaction);
 
+  bot.command('createbank', createBank);
+
   bot.action('action_new_trans', action_new_trans);
   bot.action('action_new_outflow', action_new_outflow);
   bot.action('action_new_income', action_new_income);
@@ -170,6 +172,41 @@ async function main() {
             ctx.deleteMessage(d)
           }
 
+          break;
+        
+        
+
+
+
+        case 'bank_name':
+          obj.bank_name = ctx.update.message.text
+          ctx.reply('Bank money?')
+          waitingFor = 'bank_money'
+          break;
+        
+        case 'bank_money':
+          obj.bank_money = parseInt(ctx.update.message.text.replace(".", "").replace(",", ""))
+          ctx.reply('Is main? yes/no')
+          waitingFor = 'bank_is_main'
+          break;
+      
+        case 'bank_is_main':
+          if (ctx.update.message.text.toLowerCase() == 'yes') {
+            obj.bank_ismain = true
+          } else {
+            obj.bank_ismain = false
+          }
+
+          const bank = await prisma.bank.create({
+            data: {
+              bank_name: obj.bank_name,
+              bank_money: obj.bank_money,
+              bank_ismain: obj.bank_ismain
+            }
+          })
+
+          ctx.reply('Done')
+          waitingFor = 'nothing'
           break;
       }
     
@@ -624,4 +661,11 @@ async function generic_button_press(ctx:Context, n:number) {
 
       break;
   }
+}
+
+async function createBank(ctx:Context) {
+  ctx.reply("Bank name?")
+
+  currentDoing = 'createBank'
+  waitingFor = 'bank_name'
 }
