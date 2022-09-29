@@ -159,6 +159,11 @@ main()
     process.exit(1)
   })
 
+
+
+
+
+
 async function viewBalance(ctx:Context) {       
   if (String(ctx.chat?.id) == process.env.CHAT_ID) {
       const ms_id = (await ctx.reply('Working on it...')).message_id
@@ -190,6 +195,11 @@ async function viewBalance(ctx:Context) {
     ctx.reply('Access denied')
   }
 }
+
+
+
+
+
 
 async function addTransaction(ctx:Context){
   waitingFor = "transaction_type"
@@ -324,7 +334,22 @@ function compose_number(n:string, ctx:Context) {
   sx = String(parseInt(sx))
   numb = sx + "." + numb.substring(numb.length - 2)
   
-  ctx.editMessageText("Creating new Transaction 🔁\nWhat's the amount?\n`" + numb + " €`", {
+  let str_text
+  switch (currentDoing) {
+    case "trans":
+      str_text = "Creating new Transaction 🔁"
+      break;
+    
+    case "income":
+      str_text = "Creating new Income ❇️"
+      break;
+        
+    case "outflow":
+      str_text = "Creating new Outflow 💸"
+      break;
+  }
+
+  ctx.editMessageText(str_text + "\nWhat's the amount?\n`" + numb + " €`", {
     reply_markup: {
       inline_keyboard: numbers_keyboard },
       parse_mode: "MarkdownV2"
@@ -414,6 +439,10 @@ async function action_button9(ctx:Context) {
 
 async function generic_button_press(ctx:Context, n:number) {
   let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
+  let buttons
+  let ms_id
+  let result
+  let tags
 
   switch (waitingFor) {
     case "from":
@@ -422,9 +451,9 @@ async function generic_button_press(ctx:Context, n:number) {
 
       switch (currentDoing) {
         case "trans":
-          let buttons = bank_names.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
+          buttons = bank_names.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
           // console.log(buttons.reduce((x,y) => x + "," + y))
-          let ms_id = (await ctx.reply("To which bank? 🏦", {
+          ms_id = (await ctx.reply("To which bank? 🏦", {
             reply_markup: {
               inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
             }
@@ -439,7 +468,29 @@ async function generic_button_press(ctx:Context, n:number) {
           break;
 
         case "outflow":
+          const result = await prisma.$queryRaw<trans[]>`SELECT outflow_tag FROM outflow GROUP BY outflow_tag ORDER BY COUNT(outflow_tag) DESC LIMIT 5`
+          let tags = result.map(x => x.trans_tag)
+
+          
+          if(tags.length > 0) {
+            buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
+  
+            ms_id = (await ctx.reply("Choose or write a tag 📌", {
+              reply_markup: {
+                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+              }
+            })).message_id
+          } else {
+            ms_id = (await ctx.reply("Write a tag 📌")).message_id
+          }
+
           waitingFor = 'tag'
+    
+          while(deleteMe.length > 0) {
+            let d = deleteMe.pop()
+            ctx.deleteMessage(d)
+          }
+          deleteMe.push(ms_id)
 
           break;
       }
@@ -452,12 +503,12 @@ async function generic_button_press(ctx:Context, n:number) {
 
       switch (currentDoing) {
         case "trans":
-          const result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
-          let tags = result.map(x => x.trans_tag)
+          result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
+          tags = result.map(x => x.trans_tag)
 
-          let ms_id
+          
           if(tags.length > 0) {
-            let buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
+            buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
   
             ms_id = (await ctx.reply("Choose or write a tag 📌", {
               reply_markup: {
@@ -477,18 +528,39 @@ async function generic_button_press(ctx:Context, n:number) {
           break;
 
         case "income":
+          result = await prisma.$queryRaw<trans[]>`SELECT income_tag FROM income GROUP BY income_tag ORDER BY COUNT(income_tag) DESC LIMIT 5`
+          tags = result.map(x => x.trans_tag)
+
+          
+          if(tags.length > 0) {
+            buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
+  
+            ms_id = (await ctx.reply("Choose or write a tag 📌", {
+              reply_markup: {
+                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+              }
+            })).message_id
+          } else {
+            ms_id = (await ctx.reply("Write a tag 📌")).message_id
+          }
+    
+          while(deleteMe.length > 0) {
+            let d = deleteMe.pop()
+            ctx.deleteMessage(d)
+          }
+          deleteMe.push(ms_id)
           break;
       }
 
       break;
     
     case "tag":
-      const result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
-      let tags = result.map(x => x.trans_tag)
+      result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
+      tags = result.map(x => x.trans_tag)
 
       obj.tag = tags[n]
 
-      let ms_id = (await ctx.reply("Write some info 📝")).message_id
+      ms_id = (await ctx.reply("Write some info 📝")).message_id
       waitingFor = 'info'
 
       while(deleteMe.length > 0) {
