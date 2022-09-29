@@ -61,224 +61,86 @@ async function main() {
   bot.action('action_button9', action_button9);
 
   bot.on("text", async (ctx) => {
-    if (String(ctx.chat?.id) == process.env.CHAT_ID) {    
-      let text = ctx.update.message.text
-      text = text.toLowerCase()
-      let reply = "ERROR";
+    if (String(ctx.chat?.id) == process.env.CHAT_ID) {
       
-      switch(waitingFor) {
-        case "instructions": {
-          waitingFor = "transaction_type"
-          ctx.reply("Trans / Outflow / Income ?", {
-            reply_markup: {
-                inline_keyboard: [
-                    [ { text: "Transaction", callback_data: "btn-1" } ],
-                    [ { text: "Outflow", callback_data: "next" } ],
-                    [ { text: "Income", url: "telegraf.js.org" } ]
-                ]
-            }
-          });
+      let ms_id
+      switch (waitingFor) {
+
+        case 'tag':
+          obj.tag = ctx.update.message.text
+
+          ms_id = (await ctx.reply("Write some info 📝")).message_id
+
+          deleteMe.push(ctx.update.message.message_id)
+          while(deleteMe.length > 0) {
+            let d = deleteMe.pop()
+            ctx.deleteMessage(d)
+          }
+          deleteMe.push(ms_id)
+
+          waitingFor = "info"
+
+          break;
+
+        case 'info':
+          obj.info = ctx.update.message.text
+
+          let d = new Date()
+          let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2,'0') + '-' + d.getDay().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
+          console.log(date)
+
+          switch (currentDoing) {
+            case "trans":
+              const trans = await prisma.trans.create({
+                data: {
+                  trans_datetime: date,
+                  trans_from: obj.from,
+                  trans_to: obj.to,
+                  trans_amount: obj.amount,
+                  trans_tag: obj.tag,
+                  trans_info: obj.info
+                }
+              })
+              break;
+            
+            case "outflow":
+              const outflow = await prisma.outflow.create({
+                data: {
+                  outflow_datetime: date,
+                  outflow_from: obj.from,
+                  outflow_amount: obj.amount,
+                  outflow_tag: obj.tag,
+                  outflow_info: obj.info
+                }
+              })
+              break;
+            
+            case "income":
+              const income = await prisma.income.create({
+                data: {
+                  income_datetime: date,
+                  income_to: obj.to,
+                  income_amount: obj.amount,
+                  income_tag: obj.tag,
+                  income_info: obj.info
+                }
+              })
+              break;
+          }
+          
+          
+          ctx.reply("Done ✅")
+          waitingFor = 'nothing'
+          
+          deleteMe.push(ctx.update.message.message_id)
+          while(deleteMe.length > 0) {
+            let d = deleteMe.pop()
+            ctx.deleteMessage(d)
+          }
+
           break;
       }
-
-      case "transaction_type": {
-        let types = ['transaction', 'outflow', 'income']
-        types = types.filter(x => x.includes(text.toLowerCase()))
-        if (types.length == 1) {
-          waitingFor = types[0] + "_amount"
-          reply = "Amount?"
-        } else {
-          reply = "Trans / Outflow / Income ?"
-        }
-        break;
-      }
-
-      //
-
-      case "outflow_amount": {
-        let amount = parseFloat(parseFloat(text.replace(",", ".")).toFixed(2))
-        if (amount > 0) {
-          waitingFor = "outflow_from"
-          obj.amount = amount
-          reply = 'From bank?'
-        } else {
-          reply = "Amount?"
-        }
-        break;
-      }
-
-      case "outflow_from": {
-        let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
-        bank_names = bank_names.filter(x => x.toLowerCase().includes(text.toLowerCase()))
-        if (bank_names.length == 1) {
-          waitingFor = 'outflow_tag'
-          obj.bank_from = bank_names[0]
-          reply = 'Tag?'
-        } else {
-          reply = 'From bank?'
-        }
-        break;
-      }
-      
-      case "outflow_tag": {
-        waitingFor = 'outflow_info'
-        obj.tag = text
-        reply = 'Info?'
-        break;
-      }
-      
-      case "outflow_info": {
-        obj.info = text
-
-        let d = new Date()
-        let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2,'0') + '-' + d.getDay().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
-        console.log(date)
-
-        const outflow = await prisma.outflow.create({
-          data: {
-            outflow_datetime: date,
-            outflow_from: obj.bank_from,
-            outflow_amount: obj.amount,
-            outflow_tag: obj.tag,
-            outflow_info: obj.info
-          }
-        })
-
-        waitingFor = 'instructions'
-        reply = 'Done.'
-        break;
-      }
-
-
-      
-      //
-      
-      case "income_amount": {
-        let amount = parseFloat(parseFloat(text.replace(",", ".")).toFixed(2))
-        if (amount > 0) {
-          waitingFor = "income_to"
-          obj.amount = amount
-          reply = 'To bank?'
-        } else {
-          reply = "Amount?"
-        }
-        break;
-      }
-      
-      case "income_to": {
-        let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
-        bank_names = bank_names.filter(x => x.toLowerCase().includes(text.toLowerCase()))
-        if (bank_names.length == 1) {
-          waitingFor = 'income_tag'
-          obj.bank_to = bank_names[0]
-          reply = 'Tag?'
-        } else {
-          reply = 'To bank?'
-        }
-        break;
-      }
-      
-      case "income_tag": {
-        waitingFor = 'income_info'
-        obj.tag = text
-        reply = 'Info?'
-        break;
-      }
-      
-      case "income_info": {
-        obj.info = text
-
-        let d = new Date()
-        let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2,'0') + '-' + d.getDay().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
-        console.log(date)
-
-        const outflow = await prisma.income.create({
-          data: {
-            income_datetime: date,
-            income_to: obj.bank_to,
-            income_amount: obj.amount,
-            income_tag: obj.tag,
-            income_info: obj.info
-          }
-        })
-
-        waitingFor = 'instructions'
-        reply = 'Done.'
-        break;
-      }
-      
-      //
-      
-      case "transaction_amount": {
-        let amount = parseFloat(parseFloat(text.replace(",", ".")).toFixed(2))
-        if (amount > 0) {
-          waitingFor = "transaction_from"
-          obj.amount = amount
-          reply = 'From bank?'
-        } else {
-          reply = "Amount?"
-        }
-        break;
-      }
-      
-      case "transaction_from": {
-        let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
-        bank_names = bank_names.filter(x => x.toLowerCase().includes(text.toLowerCase()))
-        if (bank_names.length == 1) {
-          waitingFor = 'transaction_to'
-          obj.bank_from = bank_names[0]
-          reply = 'To bank?'
-        } else {
-          reply = 'From bank?'
-        }
-        break;
-      }
-      
-      case "transaction_to": {
-        let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
-        bank_names = bank_names.filter(x => x.toLowerCase().includes(text.toLowerCase()))
-        if (bank_names.length == 1) {
-          waitingFor = 'transaction_tag'
-          obj.bank_to = bank_names[0]
-          reply = 'Tag?'
-        } else {
-          reply = 'To bank?'
-        }
-        break;
-      }
-      
-      case "transaction_tag": {
-        waitingFor = 'transaction_info'
-        obj.tag = text
-        reply = 'Info?'
-        break;
-      }
-      
-      case "transaction_info": {
-        obj.info = text
-
-        let d = new Date()
-        let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2,'0') + '-' + d.getDay().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
-        console.log(date)
-
-        const trans = await prisma.trans.create({
-          data: {
-            trans_datetime: date,
-            trans_from: obj.bank_from,
-            trans_to: obj.bank_to,
-            trans_amount: obj.amount,
-            trans_tag: obj.tag,
-            trans_info: obj.info
-          }
-        })
-
-        waitingFor = 'instructions'
-        reply = 'Done.'
-        break;
-      }
-    }
     
-    await ctx.reply(reply)
     } else {
       ctx.reply('Access denied')
     }
@@ -461,8 +323,8 @@ function compose_number(n:string, ctx:Context) {
   let sx = numb.substring(0, numb.length - 2)
   sx = String(parseInt(sx))
   numb = sx + "." + numb.substring(numb.length - 2)
-  // console.log(numb)
-  ctx.editMessageText("Creating new Transaction\\.\nWhat's the amount?\n`" + numb + " €`", {
+  
+  ctx.editMessageText("Creating new Transaction 🔁\nWhat's the amount?\n`" + numb + " €`", {
     reply_markup: {
       inline_keyboard: numbers_keyboard },
       parse_mode: "MarkdownV2"
@@ -500,7 +362,7 @@ async function action_trans_ok(ctx:Context) {
     let bank_names = (await prisma.bank.findMany()).map(x => x.bank_name)
     let buttons = bank_names.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
     // console.log(buttons.reduce((x,y) => x + "," + y))
-    let ms_id = (await ctx.reply(str_begin + " which bank?", {
+    let ms_id = (await ctx.reply(str_begin + " which bank? 🏦", {
       reply_markup: {
           inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
         }
@@ -562,7 +424,7 @@ async function generic_button_press(ctx:Context, n:number) {
         case "trans":
           let buttons = bank_names.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
           // console.log(buttons.reduce((x,y) => x + "," + y))
-          let ms_id = (await ctx.reply("To which bank?", {
+          let ms_id = (await ctx.reply("To which bank? 🏦", {
             reply_markup: {
               inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
             }
@@ -590,7 +452,6 @@ async function generic_button_press(ctx:Context, n:number) {
 
       switch (currentDoing) {
         case "trans":
-          // const result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
           const result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
           let tags = result.map(x => x.trans_tag)
 
@@ -598,13 +459,13 @@ async function generic_button_press(ctx:Context, n:number) {
           if(tags.length > 0) {
             let buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
   
-            ms_id = (await ctx.reply("Choose or write a tag", {
+            ms_id = (await ctx.reply("Choose or write a tag 📌", {
               reply_markup: {
                 inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
               }
             })).message_id
           } else {
-            ms_id = (await ctx.reply("Write a tag")).message_id
+            ms_id = (await ctx.reply("Write a tag 📌")).message_id
           }
     
           while(deleteMe.length > 0) {
@@ -622,6 +483,20 @@ async function generic_button_press(ctx:Context, n:number) {
       break;
     
     case "tag":
+      const result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
+      let tags = result.map(x => x.trans_tag)
+
+      obj.tag = tags[n]
+
+      let ms_id = (await ctx.reply("Write some info 📝")).message_id
+      waitingFor = 'info'
+
+      while(deleteMe.length > 0) {
+        let d = deleteMe.pop()
+        ctx.deleteMessage(d)
+      }
+      deleteMe.push(ms_id)
+
       break;
   }
 }
