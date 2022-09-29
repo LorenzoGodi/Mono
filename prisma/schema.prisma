@@ -20,7 +20,6 @@ model bank {
 model trans {
   trans_id                    Int     @id @default(autoincrement())
   trans_datetime              String  @unique @db.VarChar(50)
-  trans_place                 String? @db.VarChar(50)
   trans_from                  String? @db.VarChar(50)
   trans_to                    String? @db.VarChar(50)
   trans_amount                Decimal @db.Decimal
