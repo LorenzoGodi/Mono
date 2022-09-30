@@ -1,15 +1,13 @@
 version: "3.7"
 services:
   postgres:
-    image: postgres:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.ps
     container_name: postgres
     hostname: postgres
     ports:
       - 5432:5432
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mono
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -18,7 +16,7 @@ services:
     stdin_open: true
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.node
     container_name: telegram-bot-js
     depends_on:
       - postgres
