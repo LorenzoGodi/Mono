@@ -1,12 +1,21 @@
-import { PrismaClient } from '@prisma/client'
 import * as dotenv from 'dotenv'
 import { Telegraf, Context } from 'telegraf'
 
-import { trans, outflow, income } from '@prisma/client'
-
-const prisma = new PrismaClient()
 
 dotenv.config()
+
+
+const { Pool, Client } = require('pg')
+const connectionString = process.env.DATABASE_URL
+
+const pool = new Pool({
+  connectionString,
+})
+const client = new Client({
+  connectionString,
+})
+client.connect()
+
 
 let bot = new Telegraf(process.env.BOT_TOKEN!)
 
@@ -98,96 +107,67 @@ async function main() {
 
           switch (currentDoing) {
             case "trans":
-              const trans = await prisma.trans.create({
-                data: {
-                  trans_datetime: date,
-                  trans_from: obj.from,
-                  trans_to: obj.to,
-                  trans_amount: obj.amount,
-                  trans_tag: obj.tag,
-                  trans_info: obj.info
-                }
-              })
-              //
-              const v1 = await prisma.bank.findUnique({
-                where: {
-                  bank_name: obj.from
-                }
-              })
-              const updateBank1 = await prisma.bank.update({
-                where: {
-                  bank_name: obj.from
-                },
-                data: {
-                  bank_money: parseInt(v1?.bank_money.toString()!) - obj.amount
-                }
-              })
-              //
-              const v2 = await prisma.bank.findUnique({
-                where: {
-                  bank_name: obj.to
-                }
-              })
-              const updateBank2 = await prisma.bank.update({
-                where: {
-                  bank_name: obj.to
-                },
-                data: {
-                  bank_money: parseInt(v2?.bank_money.toString()!) + obj.amount
-                }
-              })
+              await client.query(
+                'INSERT INTO trans (trans_datetime, trans_from, trans_to, trans_amount, trans_tag, trans_info) VALUES($1, $2, $3, $4, $5, $6)', 
+                [date, obj.from, obj.to, obj.amount, obj.tag, obj.info]
+              )
+            
+              const v1 = await client.query(
+                'SELECT bank_money FROM bank WHERE bank_name = $1',
+                [obj.from]
+              )
+
+              await client.query(
+                'UPDATE bank SET bank_money = $1 WHERE bank_name = $2',
+                [parseInt(v1.rows[0].bank_money.toString()!) - obj.amount, obj.from]
+              )
+            
+              const v2 = await client.query(
+                'SELECT bank_money FROM bank WHERE bank_name = $1',
+                [obj.to]
+              )
+
+              await client.query(
+                'UPDATE bank SET bank_money = $1 WHERE bank_name = $2',
+                [parseInt(v2.rows[0].bank_money.toString()!) + obj.amount, obj.to]
+              )
               break;
 
             case "outflow":
-              const outflow = await prisma.outflow.create({
-                data: {
-                  outflow_datetime: date,
-                  outflow_from: obj.from,
-                  outflow_amount: obj.amount,
-                  outflow_tag: obj.tag,
-                  outflow_info: obj.info
-                }
-              })
-              //
-              const v3 = await prisma.bank.findUnique({
-                where: {
-                  bank_name: obj.from
-                }
-              })
-              const updateBank3 = await prisma.bank.update({
-                where: {
-                  bank_name: obj.from
-                },
-                data: {
-                  bank_money: parseInt(v3?.bank_money.toString()!) - obj.amount
-                }
-              })
+
+              await client.query(
+                'INSERT INTO outflow (outflow_datetime, outflow_from, outflow_amount, outflow_tag, outflow_info) VALUES($1, $2, $3, $4, $5)', 
+                [date, obj.from, obj.amount, obj.tag, obj.info]
+                )
+              
+              const v3 = await client.query(
+                'SELECT bank_money FROM bank WHERE bank_name = $1',
+                [obj.from]
+              )
+
+              await client.query(
+                'UPDATE bank SET bank_money = $1 WHERE bank_name = $2',
+                [parseInt(v3.rows[0].bank_money.toString()!) - obj.amount, obj.from]
+              )
+
               break;
 
             case "income":
-              const income = await prisma.income.create({
-                data: {
-                  income_datetime: date,
-                  income_to: obj.to,
-                  income_amount: obj.amount,
-                  income_tag: obj.tag,
-                  income_info: obj.info
-                }
-              });
-              //
-              const v4 = await prisma.bank.findUnique({
-                where: {
-                  bank_name: obj.to
-                }
-              })
-              const updateBank4 = await prisma.bank.update({
-                where: {
-                  bank_name: obj.to
-                },
-                data: {
-                  bank_money: parseInt(v4?.bank_money.toString()!) + obj.amount
-                }
-              })
+
+              await client.query(
+                'INSERT INTO income (income_datetime, income_to, income_amount, income_tag, income_info) VALUES($1, $2, $3, $4, $5)', 
+                [date, obj.to, obj.amount, obj.tag, obj.info]
+                )
+              
+              const v4 = await client.query(
+                'SELECT bank_money FROM bank WHERE bank_name = $1',
+                [obj.to]
+              )
+
+              await client.query(
+                'UPDATE bank SET bank_money = $1 WHERE bank_name = $2',
+                [parseInt(v4.rows[0].bank_money.toString()!) + obj.amount, obj.to]
+              )
               break;
           }
 
@@ -226,13 +206,11 @@ async function main() {
             obj.bank_ismain = false
           }
 
-          const bank = await prisma.bank.create({
-            data: {
-              bank_name: obj.bank_name,
-              bank_money: obj.bank_money,
-              bank_ismain: obj.bank_ismain
-            }
-          })
+          const text = 'INSERT INTO bank VALUES($1, $2, $3)'
+          const values = [obj.bank_name, obj.bank_money, obj.bank_ismain]
+          let result = await client.query(text, values)
+          console.log(result)
+
 
           ctx.reply('Done')
           waitingFor = 'nothing'
@@ -249,29 +227,34 @@ async function main() {
 
 main()
   .then(async () => {
-    await prisma.$disconnect()
+    // await client.end()
   })
   .catch(async (e) => {
     console.error(e)
-    await prisma.$disconnect()
+    await client.end()
     process.exit(1)
   })
 
 
 
+  async function pg_get_banks() {
+    const query = 'SELECT * FROM bank ORDER BY bank_name ASC'
+    const res = await client.query(query)
+    return res.rows
+  }
 
+  async function pg_get_banks_names() {
+    const query = 'SELECT bank_name FROM bank ORDER BY bank_name ASC'
+    const res = await client.query(query)
+    return res.rows.map(x => x.bank_name)
+  }
 
 
 async function viewBalance(ctx:Context) {
   if (String(ctx.chat?.id) == process.env.CHAT_ID) {
-      const ms_id = (await ctx.reply('Working on it...')).message_id
-      const banks = await prisma.bank.findMany({
-        orderBy: [
-          {
-            bank_name: 'asc'
-          }
-        ]
-      })
+      const ms_id = (await ctx.reply('Working on it...')).message_id      
+      let banks = await pg_get_banks()
+      console.log(banks)
 
       let str = ""
       for (let b of banks) {
@@ -503,14 +486,9 @@ async function action_trans_ok(ctx:Context) {
         str_begin = "To"
         break;
     }
-    const banks = await prisma.bank.findMany({
-      orderBy: [
-        {
-          bank_name: 'asc'
-        }
-      ]
-    })
-    let bank_names = (await prisma.bank.findMany({ orderBy: [{ bank_name: 'asc' }] })).map(x => x.bank_name)
+    
+    let bank_names = await pg_get_banks_names()
+
     let buttons = bank_names.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
     // console.log(buttons.reduce((x,y) => x + "," + y))
     let ms_id = (await ctx.reply(str_begin + " which bank? 🏦", {
@@ -564,7 +542,7 @@ async function action_button9(ctx:Context) {
 }
 
 async function generic_button_press(ctx:Context, n:number) {
-  let bank_names = (await prisma.bank.findMany({ orderBy: [{ bank_name: 'asc' }] })).map(x => x.bank_name)
+  let bank_names = await pg_get_banks_names()
   let buttons
   let ms_id
   let result
@@ -594,8 +572,11 @@ async function generic_button_press(ctx:Context, n:number) {
           break;
 
         case "outflow":
-          const result = await prisma.$queryRaw<outflow[]>`SELECT outflow_tag FROM outflow GROUP BY outflow_tag ORDER BY COUNT(outflow_tag) DESC LIMIT 5`
-          let tags = result.map(x => x.outflow_tag)
+          const text = 'SELECT outflow_tag FROM outflow GROUP BY outflow_tag ORDER BY COUNT(outflow_tag) DESC LIMIT 5'
+          let result = await client.query(text)
+          console.log(result.rows)
+
+          let tags = result.rows.map(x => x.outflow_tag)
 
 
           if(tags.length > 0) {
@@ -630,8 +611,11 @@ async function generic_button_press(ctx:Context, n:number) {
 
       switch (currentDoing) {
         case "trans":
-          result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
-          tags = result.map(x => x.trans_tag)
+          const text = 'SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5'
+          let result = await client.query(text)
+          console.log(result.rows)
+
+          tags = result.rows.map(x => x.trans_tag)
 
 
           if(tags.length > 0) {
@@ -655,8 +639,11 @@ async function generic_button_press(ctx:Context, n:number) {
           break;
 
         case "income":
-          result = await prisma.$queryRaw<income[]>`SELECT income_tag FROM income GROUP BY income_tag ORDER BY COUNT(income_tag) DESC LIMIT 5`
-          tags = result.map(x => x.income_tag)
+          const textt = 'SELECT income_tag FROM income GROUP BY income_tag ORDER BY COUNT(income_tag) DESC LIMIT 5'
+          let resultt = await client.query(textt)
+          console.log(resultt.rows)
+
+          tags = resultt.rows.map(x => x.income_tag)
 
 
           if(tags.length > 0) {
@@ -682,8 +669,11 @@ async function generic_button_press(ctx:Context, n:number) {
       break;
 
     case "tag":
-      result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
-      tags = result.map(x => x.trans_tag)
+      const text = 'SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5'
+      let result = await client.query(text)
+      console.log(result.rows)
+
+      tags = result.rows.map(x => x.trans_tag)
 
       obj.tag = tags[n]
 
