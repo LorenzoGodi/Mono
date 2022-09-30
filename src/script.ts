@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import * as dotenv from 'dotenv'
 import { Telegraf, Context } from 'telegraf'
 
-import { trans } from '@prisma/client'
+import { trans, outflow, income } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -37,7 +37,7 @@ async function main() {
   bot.action('action_new_trans', action_new_trans);
   bot.action('action_new_outflow', action_new_outflow);
   bot.action('action_new_income', action_new_income);
-  
+
   bot.action('action_trans_1', action_trans_1);
   bot.action('action_trans_2', action_trans_2);
   bot.action('action_trans_3', action_trans_3);
@@ -64,7 +64,7 @@ async function main() {
 
   bot.on("text", async (ctx) => {
     if (String(ctx.chat?.id) == process.env.CHAT_ID) {
-      
+
       let ms_id
       switch (waitingFor) {
 
@@ -88,9 +88,10 @@ async function main() {
           obj.info = ctx.update.message.text
 
           let d = new Date()
-          let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2,'0') + '-' + d.getDay().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
+          console.log(d)
+          let date = d.getFullYear() + '-' + (d.getMonth() + 1).toString().padStart(2,'0') + '-' + d.getDate().toString().padStart(2,'0') + '-' + d.getHours().toString().padStart(2,'0') + '-' + d.getMinutes().toString().padStart(2,'0') + '-' + d.getSeconds().toString().padStart(2,'0')
           console.log(date)
-
+          
           console.log("AAAAAAAAAAAAAAAA")
           console.log(obj.from)
           console.log(obj.to)
@@ -136,7 +137,7 @@ async function main() {
                 }
               })
               break;
-            
+
             case "outflow":
               const outflow = await prisma.outflow.create({
                 data: {
@@ -147,8 +148,22 @@ async function main() {
                   outflow_info: obj.info
                 }
               })
+              //
+              const v3 = await prisma.bank.findUnique({
+                where: {
+                  bank_name: obj.from
+                }
+              })
+              const updateBank3 = await prisma.bank.update({
+                where: {
+                  bank_name: obj.from
+                },
+                data: {
+                  bank_money: parseInt(v3?.bank_money.toString()!) - obj.amount
+                }
+              })
               break;
-            
+
             case "income":
               const income = await prisma.income.create({
                 data: {
@@ -159,13 +174,27 @@ async function main() {
                   income_info: obj.info
                 }
               });
+              //
+              const v4 = await prisma.bank.findUnique({
+                where: {
+                  bank_name: obj.to
+                }
+              })
+              const updateBank4 = await prisma.bank.update({
+                where: {
+                  bank_name: obj.to
+                },
+                data: {
+                  bank_money: parseInt(v4?.bank_money.toString()!) + obj.amount
+                }
+              })
               break;
           }
-          
-          
+
+
           ctx.reply("Done ✅")
           waitingFor = 'nothing'
-          
+
           deleteMe.push(ctx.update.message.message_id)
           while(deleteMe.length > 0) {
             let d = deleteMe.pop()
@@ -173,8 +202,8 @@ async function main() {
           }
 
           break;
-        
-        
+
+
 
 
 
@@ -183,13 +212,13 @@ async function main() {
           ctx.reply('Bank money?')
           waitingFor = 'bank_money'
           break;
-        
+
         case 'bank_money':
           obj.bank_money = parseInt(ctx.update.message.text.replace(".", "").replace(",", ""))
           ctx.reply('Is main? yes/no')
           waitingFor = 'bank_is_main'
           break;
-      
+
         case 'bank_is_main':
           if (ctx.update.message.text.toLowerCase() == 'yes') {
             obj.bank_ismain = true
@@ -209,12 +238,12 @@ async function main() {
           waitingFor = 'nothing'
           break;
       }
-    
+
     } else {
       ctx.reply('Access denied')
     }
   });
-  
+
   bot.launch();
   }
 
@@ -233,7 +262,7 @@ main()
 
 
 
-async function viewBalance(ctx:Context) {       
+async function viewBalance(ctx:Context) {
   if (String(ctx.chat?.id) == process.env.CHAT_ID) {
       const ms_id = (await ctx.reply('Working on it...')).message_id
       const banks = await prisma.bank.findMany({
@@ -247,16 +276,16 @@ async function viewBalance(ctx:Context) {
       let str = ""
       for (let b of banks) {
         if (b.bank_ismain) {
-          str += "`" + b.bank_name.padEnd(12, ' ') + (convertMoneyToString(b.bank_money)).padStart(8, ' ') + " €`\n" 
+          str += "`" + b.bank_name.padEnd(12, ' ') + (convertMoneyToString(b.bank_money)).padStart(8, ' ') + " €`\n"
         }
       }
       str += "`" + "".padStart(22, '-') + "`\n"
       for (let b of banks) {
         if (!b.bank_ismain) {
-          str += "`" + b.bank_name.padEnd(12, ' ') + (convertMoneyToString(b.bank_money)).padStart(8, ' ') + " €`\n" 
+          str += "`" + b.bank_name.padEnd(12, ' ') + (convertMoneyToString(b.bank_money)).padStart(8, ' ') + " €`\n"
         }
       }
-      
+
       ctx.replyWithMarkdown(str)
       ctx.deleteMessage(ms_id)
   }
@@ -285,19 +314,27 @@ function convertMoneyToString(n) {
 
 
 async function addTransaction(ctx:Context){
-  waitingFor = "transaction_type"
-  let ms_id = (await ctx.reply("Which type of transaction?", {
-    reply_markup: {
-        inline_keyboard: [
-          [ { text: "❇️ Income", callback_data: "action_new_income" },{ text: "💸 Outflow", callback_data: "action_new_outflow" } ],
-          [ { text: "🔁 Transaction", callback_data: "action_new_trans" } ]
-    ]}
-  })).message_id
-  deleteMe.push(ms_id)
+  if (String(ctx.chat?.id) == process.env.CHAT_ID) {
+    waitingFor = "transaction_type"
+    let ms_id = (await ctx.reply("Which type of transaction?", {
+      reply_markup: {
+          inline_keyboard: [
+            [ { text: "❇️ Income", callback_data: "action_new_income" },{ text: "💸 Outflow", callback_data: "action_new_outflow" } ],
+            [ { text: "🔁 Transaction", callback_data: "action_new_trans" } ]
+      ]}
+    })).message_id
+    deleteMe.push(ms_id)
+  } else {
+    ctx.reply('Access denied')
+  }
 }
 
 async function viewLasts(ctx:Context) {
-  ctx.reply("Lasts")
+  if (String(ctx.chat?.id) == process.env.CHAT_ID) {
+
+  } else {
+    ctx.reply('Access denied')
+  }
 }
 
 
@@ -416,17 +453,17 @@ function compose_number(n:string, ctx:Context) {
   let sx = numb.substring(0, numb.length - 2)
   sx = String(parseInt(sx))
   numb = sx + "." + numb.substring(numb.length - 2)
-  
+
   let str_text
   switch (currentDoing) {
     case "trans":
       str_text = "Creating new Transaction 🔁"
       break;
-    
+
     case "income":
       str_text = "Creating new Income ❇️"
       break;
-        
+
     case "outflow":
       str_text = "Creating new Outflow 💸"
       break;
@@ -438,7 +475,7 @@ function compose_number(n:string, ctx:Context) {
       parse_mode: "MarkdownV2"
     })
 }
-    
+
 async function action_trans_back(ctx:Context) {
   if(obj.amount_str.length > 0) {
     obj.amount_str = obj.amount_str.toString().substring(0, obj.amount_str.length - 1)
@@ -460,7 +497,7 @@ async function action_trans_ok(ctx:Context) {
       case "outflow":
         waitingFor = 'from'
         str_begin = "From"
-        break;    
+        break;
       case "income":
         waitingFor = 'to'
         str_begin = "To"
@@ -478,10 +515,10 @@ async function action_trans_ok(ctx:Context) {
     // console.log(buttons.reduce((x,y) => x + "," + y))
     let ms_id = (await ctx.reply(str_begin + " which bank? 🏦", {
       reply_markup: {
-          inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+          inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]")
         }
       })).message_id
-    
+
     while(deleteMe.length > 0) {
       let d = deleteMe.pop()
       ctx.deleteMessage(d)
@@ -501,26 +538,26 @@ async function action_button0(ctx:Context) {
 async function action_button1(ctx:Context) {
   generic_button_press(ctx, 1)
 }
-async function action_button2(ctx:Context) {  
+async function action_button2(ctx:Context) {
   generic_button_press(ctx, 2)
 }
 async function action_button3(ctx:Context) {
-  generic_button_press(ctx, 3)  
+  generic_button_press(ctx, 3)
 }
 async function action_button4(ctx:Context) {
-  generic_button_press(ctx, 4)  
+  generic_button_press(ctx, 4)
 }
 async function action_button5(ctx:Context) {
-  generic_button_press(ctx, 5)  
+  generic_button_press(ctx, 5)
 }
 async function action_button6(ctx:Context) {
-  generic_button_press(ctx, 6)  
+  generic_button_press(ctx, 6)
 }
 async function action_button7(ctx:Context) {
-  generic_button_press(ctx, 7)  
+  generic_button_press(ctx, 7)
 }
 async function action_button8(ctx:Context) {
-  generic_button_press(ctx, 8)  
+  generic_button_press(ctx, 8)
 }
 async function action_button9(ctx:Context) {
   generic_button_press(ctx, 9)
@@ -544,11 +581,11 @@ async function generic_button_press(ctx:Context, n:number) {
           // console.log(buttons.reduce((x,y) => x + "," + y))
           ms_id = (await ctx.reply("To which bank? 🏦", {
             reply_markup: {
-              inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+              inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]")
             }
           })).message_id
           waitingFor = 'to'
-    
+
           while(deleteMe.length > 0) {
             let d = deleteMe.pop()
             ctx.deleteMessage(d)
@@ -557,16 +594,16 @@ async function generic_button_press(ctx:Context, n:number) {
           break;
 
         case "outflow":
-          const result = await prisma.$queryRaw<trans[]>`SELECT outflow_tag FROM outflow GROUP BY outflow_tag ORDER BY COUNT(outflow_tag) DESC LIMIT 5`
-          let tags = result.map(x => x.trans_tag)
+          const result = await prisma.$queryRaw<outflow[]>`SELECT outflow_tag FROM outflow GROUP BY outflow_tag ORDER BY COUNT(outflow_tag) DESC LIMIT 5`
+          let tags = result.map(x => x.outflow_tag)
 
-          
+
           if(tags.length > 0) {
             buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
-  
+
             ms_id = (await ctx.reply("Choose or write a tag 📌", {
               reply_markup: {
-                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]")
               }
             })).message_id
           } else {
@@ -574,7 +611,7 @@ async function generic_button_press(ctx:Context, n:number) {
           }
 
           waitingFor = 'tag'
-    
+
           while(deleteMe.length > 0) {
             let d = deleteMe.pop()
             ctx.deleteMessage(d)
@@ -590,25 +627,25 @@ async function generic_button_press(ctx:Context, n:number) {
       bank_names = bank_names.filter(x => x != obj.from)
       obj.to = bank_names[n]
       waitingFor = 'tag'
-      
+
       switch (currentDoing) {
         case "trans":
           result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
           tags = result.map(x => x.trans_tag)
 
-          
+
           if(tags.length > 0) {
             buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
-  
+
             ms_id = (await ctx.reply("Choose or write a tag 📌", {
               reply_markup: {
-                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]")
               }
             })).message_id
           } else {
             ms_id = (await ctx.reply("Write a tag 📌")).message_id
           }
-    
+
           while(deleteMe.length > 0) {
             let d = deleteMe.pop()
             ctx.deleteMessage(d)
@@ -618,22 +655,22 @@ async function generic_button_press(ctx:Context, n:number) {
           break;
 
         case "income":
-          result = await prisma.$queryRaw<trans[]>`SELECT income_tag FROM income GROUP BY income_tag ORDER BY COUNT(income_tag) DESC LIMIT 5`
-          tags = result.map(x => x.trans_tag)
+          result = await prisma.$queryRaw<income[]>`SELECT income_tag FROM income GROUP BY income_tag ORDER BY COUNT(income_tag) DESC LIMIT 5`
+          tags = result.map(x => x.income_tag)
 
-          
+
           if(tags.length > 0) {
             buttons = tags.map((x,y) => "[{ \"text\": \"" + x + "\", \"callback_data\": \"action_button" + y.toString() + "\" }]")
-  
+
             ms_id = (await ctx.reply("Choose or write a tag 📌", {
               reply_markup: {
-                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]") 
+                inline_keyboard: JSON.parse("[" + buttons.reduce((x,y) => x + "," + y) + "]")
               }
             })).message_id
           } else {
             ms_id = (await ctx.reply("Write a tag 📌")).message_id
           }
-    
+
           while(deleteMe.length > 0) {
             let d = deleteMe.pop()
             ctx.deleteMessage(d)
@@ -643,7 +680,7 @@ async function generic_button_press(ctx:Context, n:number) {
       }
 
       break;
-    
+
     case "tag":
       result = await prisma.$queryRaw<trans[]>`SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5`
       tags = result.map(x => x.trans_tag)
