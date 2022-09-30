@@ -98,7 +98,8 @@ function main() {
                     case 'info':
                         obj.info = ctx.update.message.text;
                         let d = new Date();
-                        let date = d.getFullYear() + '-' + d.getMonth().toString().padStart(2, '0') + '-' + d.getDay().toString().padStart(2, '0') + '-' + d.getHours().toString().padStart(2, '0') + '-' + d.getMinutes().toString().padStart(2, '0') + '-' + d.getSeconds().toString().padStart(2, '0');
+                        console.log(d);
+                        let date = d.getFullYear() + '-' + (d.getMonth() + 1).toString().padStart(2, '0') + '-' + d.getDate().toString().padStart(2, '0') + '-' + d.getHours().toString().padStart(2, '0') + '-' + d.getMinutes().toString().padStart(2, '0') + '-' + d.getSeconds().toString().padStart(2, '0');
                         console.log(date);
                         console.log("AAAAAAAAAAAAAAAA");
                         console.log(obj.from);
@@ -154,6 +155,20 @@ function main() {
                                         outflow_info: obj.info
                                     }
                                 });
+                                //
+                                const v3 = yield prisma.bank.findUnique({
+                                    where: {
+                                        bank_name: obj.from
+                                    }
+                                });
+                                const updateBank3 = yield prisma.bank.update({
+                                    where: {
+                                        bank_name: obj.from
+                                    },
+                                    data: {
+                                        bank_money: parseInt(v3 === null || v3 === void 0 ? void 0 : v3.bank_money.toString()) - obj.amount
+                                    }
+                                });
                                 break;
                             case "income":
                                 const income = yield prisma.income.create({
@@ -163,6 +178,20 @@ function main() {
                                         income_amount: obj.amount,
                                         income_tag: obj.tag,
                                         income_info: obj.info
+                                    }
+                                });
+                                //
+                                const v4 = yield prisma.bank.findUnique({
+                                    where: {
+                                        bank_name: obj.to
+                                    }
+                                });
+                                const updateBank4 = yield prisma.bank.update({
+                                    where: {
+                                        bank_name: obj.to
+                                    },
+                                    data: {
+                                        bank_money: parseInt(v4 === null || v4 === void 0 ? void 0 : v4.bank_money.toString()) + obj.amount
                                     }
                                 });
                                 break;
