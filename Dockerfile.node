@@ -8,7 +8,6 @@ COPY package-lock.json package-lock.json
 COPY . .
 
 RUN npm install
-RUN npx prisma generate
 
 RUN npx tsc
 
