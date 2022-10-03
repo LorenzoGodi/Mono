@@ -39,6 +39,10 @@ async function main() {
 
   bot.command('viewlasts', viewLasts);
 
+  bot.action('action_view_incomes', action_view_incomes);
+  bot.action('action_view_outflows', action_view_outflows);
+  bot.action('action_view_transs', action_view_transs);
+
   bot.command('addtransaction', addTransaction);
 
   bot.command('createbank', createBank);
@@ -249,16 +253,79 @@ main()
     return res.rows.map(x => x.bank_name)
   }
 
-  async function pg_get_outflows() {
-    const query = 'SELECT * FROM outflow ORDER BY outflow_datetime DESC LIMIT 3'
+  async function pg_get_transactions() {
+    const query = 'SELECT * FROM trans ORDER BY trans_datetime DESC LIMIT 3'
+    const res = (await client.query(query)).rows
+
+    let str = "🔁 Last three transactions\n\n"
+    let count = 0
+    for (let i of res) {
+      // str += ["1️⃣","2️⃣","3️⃣"][count] + '\n'
+
+      str += "🏦 `" + res[count].trans_from + " \\-\\> " + res[count].trans_to + "`\n"
+
+      let numb = convertMoneyToString(res[count].trans_amount)
+      str += "💶 `" + numb + " €`\n"
+
+      str += "📌 `" + res[count].trans_tag + "`\n"
+
+      let ds = res[count].trans_datetime.split("-")
+      str += "🗓️ `" + ds[2] + "/" + ds[1] + "/" + ds[0] + " \\- " + ds[3] + ":" + ds[4] + "`\n\n"
+
+      count++
+    }
+
+    return str
   }
 
   async function pg_get_outflows() {
     const query = 'SELECT * FROM outflow ORDER BY outflow_datetime DESC LIMIT 3'
+    const res = (await client.query(query)).rows
+
+    let str = "💸 Last three outflows\n\n"
+    let count = 0
+    for (let i of res) {
+      // str += ["1️⃣","2️⃣","3️⃣"][count] + '\n'
+
+      str += "🏦 `" + res[count].outflow_from + "`\n"
+
+      let numb = convertMoneyToString(res[count].outflow_amount)
+      str += "💶 `" + numb + " €`\n"
+
+      str += "📌 `" + res[count].outflow_tag + "`\n"
+
+      let ds = res[count].outflow_datetime.split("-")
+      str += "🗓️ `" + ds[2] + "/" + ds[1] + "/" + ds[0] + " \\- " + ds[3] + ":" + ds[4] + "`\n\n"
+
+      count++
+    }
+
+    return str
   }
   
-  async function pg_get_outflows() {
-    const query = 'SELECT * FROM outflow ORDER BY outflow_datetime DESC LIMIT 3'
+  async function pg_get_incomes() {
+    const query = 'SELECT * FROM income ORDER BY income_datetime DESC LIMIT 3'
+    const res = (await client.query(query)).rows
+
+    let str = "❇️ Last three incomes\n\n"
+    let count = 0
+    for (let i of res) {
+      // str += ["1️⃣","2️⃣","3️⃣"][count] + '\n'
+
+      str += "🏦 `" + res[count].income_to + "`\n"
+
+      let numb = convertMoneyToString(res[count].income_amount)
+      str += "💶 `" + numb + " €`\n"
+
+      str += "📌 `" + res[count].income_tag + "`\n"
+
+      let ds = res[count].income_datetime.split("-")
+      str += "🗓️ `" + ds[2] + "/" + ds[1] + "/" + ds[0] + " \\- " + ds[3] + ":" + ds[4] + "`\n\n"
+
+      count++
+    }
+
+    return str
   }
 
 
@@ -326,10 +393,42 @@ async function addTransaction(ctx:Context){
 
 async function viewLasts(ctx:Context) {
   if (String(ctx.chat?.id) == process.env.CHAT_ID) {
-
+    currentDoing = 'view_lasts'
+    waitingFor = "transaction_type"
+    let ms_id = (await ctx.reply("Of which type of transaction?", {
+      reply_markup: {
+          inline_keyboard: [
+            [ { text: "❇️ Income", callback_data: "action_view_incomes" },{ text: "💸 Outflow", callback_data: "action_view_outflows" } ],
+            [ { text: "🔁 Transaction", callback_data: "action_view_transs" } ]
+      ]}
+    })).message_id
+    deleteMe.push(ms_id)
   } else {
     ctx.reply('Access denied')
   }
+
+}
+
+async function action_view_incomes(ctx:Context) {
+  ctx.replyWithMarkdownV2(await pg_get_incomes())
+  while(deleteMe.length > 0) {
+    let d = deleteMe.pop()
+    ctx.deleteMessage(d)
+  }
+}
+async function action_view_outflows(ctx:Context) {
+  ctx.replyWithMarkdownV2(await pg_get_outflows()) 
+  while(deleteMe.length > 0) {
+    let d = deleteMe.pop()
+    ctx.deleteMessage(d)
+  } 
+}
+async function action_view_transs(ctx:Context) {
+  ctx.replyWithMarkdownV2(await pg_get_transactions())
+  while(deleteMe.length > 0) {
+    let d = deleteMe.pop()
+    ctx.deleteMessage(d)
+  }  
 }
 
 
