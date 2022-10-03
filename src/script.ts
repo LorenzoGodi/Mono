@@ -249,6 +249,18 @@ main()
     return res.rows.map(x => x.bank_name)
   }
 
+  async function pg_get_outflows() {
+    const query = 'SELECT * FROM outflow ORDER BY outflow_datetime DESC LIMIT 3'
+  }
+
+  async function pg_get_outflows() {
+    const query = 'SELECT * FROM outflow ORDER BY outflow_datetime DESC LIMIT 3'
+  }
+  
+  async function pg_get_outflows() {
+    const query = 'SELECT * FROM outflow ORDER BY outflow_datetime DESC LIMIT 3'
+  }
+
 
 async function viewBalance(ctx:Context) {
   if (String(ctx.chat?.id) == process.env.CHAT_ID) {
