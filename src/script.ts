@@ -780,11 +780,33 @@ async function generic_button_press(ctx:Context, n:number) {
       break;
 
     case "tag":
-      const text = 'SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5'
+      let text
+      switch (currentDoing) {
+        case "trans":
+          text = 'SELECT trans_tag FROM trans GROUP BY trans_tag ORDER BY COUNT(trans_tag) DESC LIMIT 5'
+          break;
+        case "income":
+          text = 'SELECT income_tag FROM income GROUP BY income_tag ORDER BY COUNT(income_tag) DESC LIMIT 5'
+          break;
+        case "outflow":
+          text = 'SELECT outflow_tag FROM outflow GROUP BY outflow_tag ORDER BY COUNT(outflow_tag) DESC LIMIT 5'
+          break;
+      }
       let result = await client.query(text)
       console.log(result.rows)
 
-      tags = result.rows.map(x => x.trans_tag)
+      case "tag":
+      switch (currentDoing) {
+        case "trans":
+          tags = result.rows.map(x => x.trans_tag)
+          break;
+        case "income":
+          tags = result.rows.map(x => x.income_tag)
+          break;
+        case "outflow":
+          tags = result.rows.map(x => x.outflow_tag)
+          break;
+      }
 
       obj.tag = tags[n]
 
