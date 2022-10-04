@@ -268,6 +268,8 @@ main()
       str += "💶 `" + numb + " €`\n"
 
       str += "📌 `" + res[count].trans_tag + "`\n"
+      
+            str += "🔎 `" + res[count].trans_info + "`\n"
 
       let ds = res[count].trans_datetime.split("-")
       str += "🗓️ `" + ds[2] + "/" + ds[1] + "/" + ds[0] + " \\- " + ds[3] + ":" + ds[4] + "`\n\n"
@@ -293,6 +295,8 @@ main()
       str += "💶 `" + numb + " €`\n"
 
       str += "📌 `" + res[count].outflow_tag + "`\n"
+      
+            str += "🔎 `" + res[count].outflow_info + "`\n"
 
       let ds = res[count].outflow_datetime.split("-")
       str += "🗓️ `" + ds[2] + "/" + ds[1] + "/" + ds[0] + " \\- " + ds[3] + ":" + ds[4] + "`\n\n"
@@ -318,6 +322,8 @@ main()
       str += "💶 `" + numb + " €`\n"
 
       str += "📌 `" + res[count].income_tag + "`\n"
+      
+            str += "🔎 `" + res[count].income_info + "`\n"
 
       let ds = res[count].income_datetime.split("-")
       str += "🗓️ `" + ds[2] + "/" + ds[1] + "/" + ds[0] + " \\- " + ds[3] + ":" + ds[4] + "`\n\n"
